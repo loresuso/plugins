@@ -1,0 +1,6 @@
+- rule: test rule
+  desc: test rule
+  condition: journal.systemd_unit icontains docker and journal.message contains "Daemon has completed initialization"
+  output: got it %journal.message
+  priority: WARNING 
+  source: journal
