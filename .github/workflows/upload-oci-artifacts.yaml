@@ -1,0 +1,28 @@
+name: Update OCI Artifacts
+on:
+  workflow_dispatch # to be set to cron
+
+jobs:
+  publish-oci-artifacts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Plugins
+        uses: actions/checkout@v3
+
+      - name: Setup Golang
+        uses: actions/setup-go@v3
+        with:
+          go-version: '^1.19'
+
+      - name: Build OCI artifact tool
+        working-directory: build/oci
+        run: make
+
+      - name: Upload OCI artifacts to GitHub packages
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: build/oci
+        run: ./bin/oci
