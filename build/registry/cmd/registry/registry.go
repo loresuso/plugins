@@ -18,13 +18,11 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
-	"strings"
-
+	"github.com/falcosecurity/plugins/build/oci/pkg/output"
 	"github.com/falcosecurity/plugins/build/registry/pkg/registry"
 	"github.com/falcosecurity/plugins/build/registry/pkg/registry/distribution"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 const (
@@ -48,53 +46,21 @@ func doCheck(fileName string) error {
 	return registry.Validate()
 }
 
-func doTable(registryFile, subFile, subTag string) error {
-	r, err := loadRegistryFromFile(registryFile)
-	if err != nil {
-		return err
-	}
-
-	err = r.Validate()
-	if err != nil {
-		return err
-	}
-
-	table, err := FormatMarkdownTable(r)
-	if err != nil {
-		return err
-	}
-	if len(subFile) == 0 {
-		fmt.Println(table)
-	} else {
-		if len(subTag) == 0 {
-			return fmt.Errorf("subtag flag is required")
-		}
-		content, err := ioutil.ReadFile(subFile)
-		if err != nil {
-			return err
-		}
-		pieces := strings.SplitN(string(content), subTag, 3)
-		if len(pieces) != 3 {
-			return fmt.Errorf("can't find two instances of subtag in text file: '%s'", subTag)
-		}
-		contentStr := fmt.Sprintf("%s%s\n%s\n%s%s", pieces[0], subTag, table, subTag, pieces[2])
-		if err = ioutil.WriteFile(subFile, []byte(contentStr), 0666); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func doUpdateIndex(registryFile, indexFile string) error {
+func doUpdateIndex(registryFile, ociArtifactsFile, indexFile string) error {
 	registry, err := loadRegistryFromFile(registryFile)
 	if err != nil {
 		return err
 	}
+
+	ociEntries := output.New()
+	if err := ociEntries.Read(ociArtifactsFile); err != nil {
+		return err
+	}
+
 	if err := registry.Validate(); err != nil {
 		return err
 	}
-	return distribution.UpsertIndex(registry, indexFile)
+	return distribution.UpsertIndex(registry, ociEntries, indexFile)
 }
 
 func main() {
@@ -107,28 +73,13 @@ func main() {
 			return doCheck(args[0])
 		},
 	}
-
-	var tableSubFileName string
-	var tableSubTab string
-	tableCmd := &cobra.Command{
-		Use:   "table <filename>",
-		Short: "Format a plugin registry YAML file in a MarkDown table",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(c *cobra.Command, args []string) error {
-			return doTable(args[0], tableSubFileName, tableSubTab)
-		},
-	}
-	tableFlags := tableCmd.Flags()
-	tableFlags.StringVar(&tableSubTab, "subtag", defaultTableSubTag, "A tag that delimits the start and the end of the text section to substitute with the generated table.")
-	tableFlags.StringVar(&tableSubFileName, "subfile", "", "If specified, the table will be written inside the file at this path, inserting it between the first two instances of the substitution tag.")
-
 	updateIndexCmd := &cobra.Command{
-		Use:                   "update-index <registryFilename> <indexFilename>",
+		Use:                   "update-index <registryFilename> <ociArtifactsFilename> <indexFilename>",
 		Short:                 "Update an index file for artifacts distribution using registry data",
-		Args:                  cobra.ExactArgs(2),
+		Args:                  cobra.ExactArgs(3),
 		DisableFlagsInUseLine: true,
 		RunE: func(c *cobra.Command, args []string) error {
-			return doUpdateIndex(args[0], args[1])
+			return doUpdateIndex(args[0], args[1], args[2])
 		},
 	}
 
@@ -137,7 +88,6 @@ func main() {
 		Version: "0.2.0",
 	}
 	rootCmd.AddCommand(checkCmd)
-	rootCmd.AddCommand(tableCmd)
 	rootCmd.AddCommand(updateIndexCmd)
 
 	if err := rootCmd.Execute(); err != nil {
