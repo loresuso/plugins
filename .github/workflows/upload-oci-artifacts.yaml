@@ -35,4 +35,14 @@ jobs:
 
       - name: Generate index
         working-directory: build/registry
-        run: ./bin/registry update-index ../../registry.yaml ../oci/oci_output.yaml newIndex.yaml && cat newIndex.yaml
+        run: | 
+            ./bin/registry update-index ../../registry.yaml ../oci/oci_output.yaml newIndex.yaml && 
+            cat newIndex.yaml && 
+            mkdir /tmp/index &&
+            mv newIndex.yaml /tmp/index/index.yaml 
+      
+      - name: Publish on GitHub Pages
+        uses: ftnext/action-push-ghpages@v1.0.0
+        with:
+          build_dir: /tmp/index
+          github_token: ${{ secrets.GITHUB_TOKEN }}

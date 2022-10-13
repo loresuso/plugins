@@ -436,6 +436,8 @@ func platform(key, version string) string {
 		key = "linux/" + key
 	}
 
+	key = strings.Replace(key, "x86_64", "amd64", 1)
+
 	klog.V(4).Infof("platform %q extracted from key %q", key, oldKey)
 	return key
 }
