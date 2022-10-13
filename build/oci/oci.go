@@ -20,12 +20,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"k8s.io/klog/v2"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"k8s.io/klog/v2"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/blang/semver"
@@ -392,6 +393,10 @@ func latestVersion(versions []string) (string, error) {
 	}
 	var parsedVersions []semver.Version
 	for _, v := range versions {
+		// skip rc version since they cannot be "latest"
+		if strings.Contains(v, "rc") {
+			continue
+		}
 		parsedVersion, err := semver.Parse(v)
 		if err != nil {
 			return "", fmt.Errorf("cannot parse version %q", v)
