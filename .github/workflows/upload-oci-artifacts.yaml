@@ -27,4 +27,12 @@ jobs:
           REPO: loresuso
           REPO_GITHUB: https://github.com/loresuso/plugins.git
         working-directory: build/oci
-        run: ./oci
+        run: ./oci # -o flag to put it in a specific file ("oci_output.yaml")
+
+      - name: Build registry artifact tool
+        working-directory: build/registry
+        run: make
+
+      - name: Generate index
+        working-directory: build/registry
+        run: ./bin/registry update-index ../../registry.yaml ../oci/oci_output.yaml newIndex.yaml && cat newIndex.yaml
