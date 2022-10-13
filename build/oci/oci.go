@@ -57,11 +57,12 @@ const (
 	registryUser  = "REGISTRY_USER"
 	registryOCI   = "REGISTRY"
 	repoOCI       = "REPO"
+	repoGithub    = "REPO_GITHUB"
 	registryYAML  = "../../registry.yaml"
 )
 
 func main() {
-	var registry, repo, user, token string
+	var registry, repo, repoGit, user, token string
 	var found bool
 	klog.InitFlags(nil)
 	flag.Parse()
@@ -87,6 +88,11 @@ func main() {
 
 	if repo, found = os.LookupEnv(repoOCI); !found {
 		klog.Errorf("environment variable with key %q not found, please set it before running this tool", repoOCI)
+		os.Exit(1)
+	}
+
+	if repoGit, found = os.LookupEnv(repoGithub); !found {
+		klog.Errorf("environment variable with key %q not found, please set it before running this tool", repoGithub)
 		os.Exit(1)
 	}
 
@@ -123,7 +129,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		if entry, err = handlePlugins(ctx, s3Client, ociClient, registry, repo, plugin.Name, keys); err != nil {
+		if entry, err = handlePlugins(ctx, s3Client, ociClient, registry, repo, repoGit, plugin.Name, keys); err != nil {
 			log.Printf("error handle plugins: %v\n", err)
 			os.Exit(1)
 		}
@@ -131,7 +137,7 @@ func main() {
 		if entry != nil {
 			entries.Upsert(entry)
 		}
-		if entry, err = handleRules(ctx, s3Client, ociClient, registry, repo, plugin.Name, keys); err != nil {
+		if entry, err = handleRules(ctx, s3Client, ociClient, registry, repo, repoGit, plugin.Name, keys); err != nil {
 			log.Printf("error handle rules: %v\n", err)
 			os.Exit(1)
 		}
@@ -198,7 +204,7 @@ func listObjects(ctx context.Context, client *s3.Client, name string) ([]string,
 	return keys, nil
 }
 
-func handlePlugins(ctx context.Context, s3client *s3.Client, ociClient *auth.Client, registry, repo, pluginName string, keys []string) (*output.Entry, error) {
+func handlePlugins(ctx context.Context, s3client *s3.Client, ociClient *auth.Client, registry, repo, repoGit, pluginName string, keys []string) (*output.Entry, error) {
 	klog.Infof("Handling plugin %q...", pluginName)
 	pluginVersions := make(map[string][]string)
 	var allPluginVersions []string
@@ -282,7 +288,8 @@ func handlePlugins(ctx context.Context, s3client *s3.Client, ociClient *auth.Cli
 		pusher := ocipusher.NewPusher(ociClient, false, nil)
 		_, err := pusher.Push(context.Background(), oci.Plugin, ref+":"+tag,
 			ocipusher.WithTags(tags...),
-			ocipusher.WithFilepathsAndPlatforms(filepaths, platforms))
+			ocipusher.WithFilepathsAndPlatforms(filepaths, platforms),
+			ocipusher.WithAnnotationSource(repoGit))
 		if err != nil {
 			return nil, fmt.Errorf("an error occurred while pushing plugin %q: %w", pluginName, err)
 		}
@@ -299,7 +306,7 @@ func handlePlugins(ctx context.Context, s3client *s3.Client, ociClient *auth.Cli
 	}, nil
 }
 
-func handleRules(ctx context.Context, s3Client *s3.Client, ociClient *auth.Client, registry, repo, rulesetName string, keys []string) (*output.Entry, error) {
+func handleRules(ctx context.Context, s3Client *s3.Client, ociClient *auth.Client, registry, repo, repoGit, rulesetName string, keys []string) (*output.Entry, error) {
 	klog.Infof("Handling ruleset %q...", rulesetName)
 	ruleVersions := make(map[string]string)
 	var allRuleVersions []string
@@ -361,7 +368,8 @@ func handleRules(ctx context.Context, s3Client *s3.Client, ociClient *auth.Clien
 		pusher := ocipusher.NewPusher(ociClient, false, nil)
 		_, err := pusher.Push(context.Background(), oci.Rulesfile, ref+":"+tag,
 			ocipusher.WithTags(tags...),
-			ocipusher.WithFilepaths(filepaths))
+			ocipusher.WithFilepaths(filepaths),
+			ocipusher.WithAnnotationSource(repoGit))
 		if err != nil {
 			return nil, fmt.Errorf("an error occurred while pushing ruleset %q: %w", rulesetName, err)
 		}
