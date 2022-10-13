@@ -27,4 +27,4 @@ jobs:
           REPO: loresuso
           REPO_GITHUB: https://github.com/loresuso/plugins.git
         working-directory: build/oci
-        run: ./bin/oci
+        run: ./oci
