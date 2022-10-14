@@ -17,29 +17,24 @@ limitations under the License.
 package distribution
 
 import (
-	"strings"
-
 	"github.com/falcosecurity/falcoctl/pkg/index"
 	"github.com/falcosecurity/falcoctl/pkg/oci"
+	"github.com/falcosecurity/plugins/build/oci/pkg/output"
 	"github.com/falcosecurity/plugins/build/registry/pkg/registry"
 )
 
 // Define our conventions.
 const (
 	GHOrg               = "falcosecurity"
-	GHRepo              = "plugins"
-	GHRepoFull          = "https://github.com/" + GHOrg + "/" + GHRepo + "/"
-	OCIRepoBashPath     = GHOrg + "/" + GHRepo + "/"
-	OCIRegistry         = "ghcr.io"
 	RulesArtifactSuffix = "-rules"
 )
 
-func pluginToIndexEntry(p registry.Plugin) *index.Entry {
+func pluginToIndexEntry(p registry.Plugin, registry, repo string) *index.Entry {
 	return &index.Entry{
 		Name:        p.Name,
 		Type:        string(oci.Plugin),
-		Registry:    OCIRegistry,
-		Repository:  OCIRepoBashPath + p.Name,
+		Registry:    registry,
+		Repository:  repo,
 		Description: p.Description,
 		Home:        p.URL,
 		Keywords:    p.Keywords,
@@ -49,12 +44,12 @@ func pluginToIndexEntry(p registry.Plugin) *index.Entry {
 	}
 }
 
-func pluginRulesToIndexEntry(p registry.Plugin) *index.Entry {
+func pluginRulesToIndexEntry(p registry.Plugin, registry, repo string) *index.Entry {
 	return &index.Entry{
 		Name:        p.Name + RulesArtifactSuffix,
 		Type:        string(oci.Rulesfile),
-		Registry:    OCIRegistry,
-		Repository:  OCIRepoBashPath + p.Name + RulesArtifactSuffix,
+		Registry:    registry,
+		Repository:  repo,
 		Description: p.Description,
 		Home:        p.URL,
 		Keywords:    append(p.Keywords, p.Name+RulesArtifactSuffix),
@@ -64,7 +59,7 @@ func pluginRulesToIndexEntry(p registry.Plugin) *index.Entry {
 	}
 }
 
-func UpsertIndex(r *registry.Registry, indexPath string) error {
+func UpsertIndex(r *registry.Registry, ociArtifacts *output.Entries, indexPath string) error {
 	i := index.New(GHOrg)
 
 	if err := i.Read(indexPath); err != nil {
@@ -72,12 +67,14 @@ func UpsertIndex(r *registry.Registry, indexPath string) error {
 	}
 
 	for _, p := range r.Plugins {
-		// We only publish falcosecurity artifacts
-		if !p.Reserved && strings.HasPrefix(p.URL, GHRepoFull) {
-			i.Upsert(pluginToIndexEntry(p))
-			if len(p.RulesURL) > 0 {
-				i.Upsert(pluginRulesToIndexEntry(p))
-			}
+		// We only publish falcosecurity artifacts that have been uploaded to the repo.
+		ociPlugin := ociArtifacts.EntryByName(p.Name)
+		ociRules := ociArtifacts.EntryByName(p.Name + "-rules")
+		if ociPlugin != nil {
+			i.Upsert(pluginToIndexEntry(p, ociPlugin.Registry, ociPlugin.Repository))
+		}
+		if ociRules != nil {
+			i.Upsert(pluginRulesToIndexEntry(p, ociRules.Registry, ociRules.Repository))
 		}
 	}
 
