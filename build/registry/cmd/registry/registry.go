@@ -17,12 +17,19 @@ limitations under the License.
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"github.com/falcosecurity/plugins/build/oci/pkg/output"
+	"github.com/falcosecurity/falcoctl/pkg/oci/authn"
 	"github.com/falcosecurity/plugins/build/registry/pkg/registry"
 	"github.com/falcosecurity/plugins/build/registry/pkg/registry/distribution"
 	"github.com/spf13/cobra"
+	"oras.land/oras-go/v2/errdef"
+	"oras.land/oras-go/v2/registry/remote"
+	"oras.land/oras-go/v2/registry/remote/auth"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 const (
@@ -46,21 +53,75 @@ func doCheck(fileName string) error {
 	return registry.Validate()
 }
 
-func doUpdateIndex(registryFile, ociArtifactsFile, indexFile string) error {
-	registry, err := loadRegistryFromFile(registryFile)
+func doUpdateIndex(registryFile, indexFile string) error {
+	var user, reg string
+	var found bool
+	if user, found = os.LookupEnv(registry.RegistryUser); !found {
+		return fmt.Errorf("environment variable with key %q not found, please set it before running this tool", registry.RegistryUser)
+	}
+
+	if reg, found = os.LookupEnv(registry.RegistryOCI); !found {
+		return fmt.Errorf("environment variable with key %q not found, please set it before running this tool", registry.RegistryOCI)
+	}
+
+	registryEntries, err := loadRegistryFromFile(registryFile)
 	if err != nil {
 		return err
 	}
-
-	ociEntries := output.New()
-	if err := ociEntries.Read(ociArtifactsFile); err != nil {
+	ociEntries, err := ociRepos(registryEntries, reg, user)
+	if err != nil {
+		return err
+	}
+	if err := registryEntries.Validate(); err != nil {
 		return err
 	}
 
-	if err := registry.Validate(); err != nil {
-		return err
+	return distribution.UpsertIndex(registryEntries, ociEntries, indexFile)
+}
+
+func ociRepos(registryEntries *registry.Registry, reg, user string) (map[string]string, error) {
+	ociClient := authn.NewClient(auth.EmptyCredential)
+	ociEntries := make(map[string]string)
+
+	for _, entry := range registryEntries.Plugins {
+		if err := ociRepo(ociEntries, ociClient, registry.PluginNamespace, reg, user, entry.Name); err != nil {
+			return nil, err
+		}
+
+		if entry.RulesURL != "" {
+			if err := ociRepo(ociEntries, ociClient, registry.RulesfileNamespace, reg, user, entry.Name); err != nil {
+				return nil, err
+			}
+		}
 	}
-	return distribution.UpsertIndex(registry, ociEntries, indexFile)
+
+	return ociEntries, nil
+}
+
+func ociRepo(ociEntries map[string]string, client *auth.Client, ociRepoNamespace, reg, user, artifactName string) error {
+	ref := filepath.Join(reg, user, ociRepoNamespace, artifactName)
+
+	if ociRepoNamespace == registry.RulesfileNamespace {
+		artifactName = artifactName + "-rules"
+	}
+
+	repo, err := remote.NewRepository(ref)
+	if err != nil {
+		return fmt.Errorf("unable to create repo for ref %q: %w", ref, err)
+	}
+	repo.Client = client
+
+	_, _, err = repo.FetchReference(context.Background(), ref+":latest")
+	if err != nil && (errors.Is(err, errdef.ErrNotFound) || strings.Contains(err.Error(), "requested access to the resource is denied")) {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("unable to fetch reference for %q: %w", ref+":latest", err)
+	}
+
+	ociEntries[artifactName] = ref
+	return nil
 }
 
 func main() {
@@ -74,12 +135,22 @@ func main() {
 		},
 	}
 	updateIndexCmd := &cobra.Command{
-		Use:                   "update-index <registryFilename> <ociArtifactsFilename> <indexFilename>",
+		Use:                   "update-index <registryFilename> <indexFilename>",
 		Short:                 "Update an index file for artifacts distribution using registry data",
-		Args:                  cobra.ExactArgs(3),
+		Args:                  cobra.ExactArgs(2),
 		DisableFlagsInUseLine: true,
 		RunE: func(c *cobra.Command, args []string) error {
-			return doUpdateIndex(args[0], args[1], args[2])
+			return doUpdateIndex(args[0], args[1])
+		},
+	}
+
+	updateOCIRegistry := &cobra.Command{
+		Use:                   "update-oci-registry <registryFilename>",
+		Short:                 "Update the oci registry starting from the registry file and s3 bucket",
+		Args:                  cobra.ExactArgs(1),
+		DisableFlagsInUseLine: true,
+		RunE: func(c *cobra.Command, args []string) error {
+			return doUpdateOCIRegistry(args[0])
 		},
 	}
 
@@ -89,6 +160,7 @@ func main() {
 	}
 	rootCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(updateIndexCmd)
+	rootCmd.AddCommand(updateOCIRegistry)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Printf("error: %s\n", err)

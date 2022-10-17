@@ -19,8 +19,9 @@ package distribution
 import (
 	"github.com/falcosecurity/falcoctl/pkg/index"
 	"github.com/falcosecurity/falcoctl/pkg/oci"
-	"github.com/falcosecurity/plugins/build/oci/pkg/output"
 	"github.com/falcosecurity/plugins/build/registry/pkg/registry"
+	"path/filepath"
+	"strings"
 )
 
 // Define our conventions.
@@ -59,7 +60,7 @@ func pluginRulesToIndexEntry(p registry.Plugin, registry, repo string) *index.En
 	}
 }
 
-func UpsertIndex(r *registry.Registry, ociArtifacts *output.Entries, indexPath string) error {
+func UpsertIndex(r *registry.Registry, ociArtifacts map[string]string, indexPath string) error {
 	i := index.New(GHOrg)
 
 	if err := i.Read(indexPath); err != nil {
@@ -68,13 +69,18 @@ func UpsertIndex(r *registry.Registry, ociArtifacts *output.Entries, indexPath s
 
 	for _, p := range r.Plugins {
 		// We only publish falcosecurity artifacts that have been uploaded to the repo.
-		ociPlugin := ociArtifacts.EntryByName(p.Name)
-		ociRules := ociArtifacts.EntryByName(p.Name + "-rules")
-		if ociPlugin != nil {
-			i.Upsert(pluginToIndexEntry(p, ociPlugin.Registry, ociPlugin.Repository))
+		ref, ociPluginFound := ociArtifacts[p.Name]
+		ref, ociRulesFound := ociArtifacts[p.Name+"-rules"]
+
+		// Build registry and repo starting from the reference.
+		tokens := strings.Split(ref, "/")
+		ociRegistry := tokens[0]
+		ociRepo := filepath.Join(tokens[1:]...)
+		if ociPluginFound {
+			i.Upsert(pluginToIndexEntry(p, ociRegistry, ociRepo))
 		}
-		if ociRules != nil {
-			i.Upsert(pluginRulesToIndexEntry(p, ociRules.Registry, ociRules.Repository))
+		if ociRulesFound {
+			i.Upsert(pluginRulesToIndexEntry(p, ociRegistry, ociRepo))
 		}
 	}
 
