@@ -3,7 +3,9 @@
 .DS_Store
 .idea
 output/
+build/
 plugins/*/*.so
 plugins/*/lib*.h
 plugins/dummy_c/nlohmann
 plugins/dummy_c/sdk
+plugins/hashing/build/
