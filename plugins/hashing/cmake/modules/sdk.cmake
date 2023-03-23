@@ -1,7 +1,11 @@
-message("fetching sdk")
+include(FetchContent)
 
-file(DOWNLOAD https://raw.githubusercontent.com/falcosecurity/plugin-sdk-cpp/52296e3a46d328791f61459e7be85ef00e44e786/include/plugin_info.h ${CMAKE_BINARY_DIR}/sdk/plugin_info.h)
+FetchContent_Declare(
+  plugin-sdk-cpp
+  GIT_REPOSITORY https://github.com/loresuso/plugin-sdk-cpp.git # todo: change here
+  GIT_TAG        5e7f232eb6d7d1efdc7a4d0404c66a47b841676b # desired git tag here
+)
 
-file(DOWNLOAD https://raw.githubusercontent.com/falcosecurity/plugin-sdk-cpp/52296e3a46d328791f61459e7be85ef00e44e786/include/falcosecurity_plugin.h ${CMAKE_BINARY_DIR}/sdk/falcosecurity_plugin.h)
+FetchContent_MakeAvailable(plugin-sdk-cpp)
 
-include_directories(${CMAKE_BINARY_DIR}/sdk)
+include_directories(${plugin-sdk-cpp_SOURCE_DIR}/include)

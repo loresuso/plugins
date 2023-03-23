@@ -8,14 +8,20 @@ include(rocksdb)
 include(json)
 include(sdk)
 
-add_library(hashing SHARED hashing.cpp hash_calculator.cpp)
+add_library(hashing SHARED 
+    hashing.cpp
+    hash_calculator.cpp 
+    api.cpp 
+    watcher.cpp 
+    utils.cpp
+    lru_cache.cpp)
 
 # todo: create a cmake module also for zlib and openssl
 find_package(ZLIB REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 
-target_link_libraries(hashing 
+target_link_libraries(hashing
     rocksdb
     ZLIB::ZLIB
     nlohmann_json::nlohmann_json 
