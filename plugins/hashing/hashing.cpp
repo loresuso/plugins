@@ -31,6 +31,7 @@ limitations under the License.
 #include <thread>
 #include <vector>
 
+#include "exec_watcher.h"  // todo: just remove it
 #include "hash_calculator.h"
 #include "lru_cache.h"
 #include "nlohmann/json.hpp"
@@ -49,12 +50,6 @@ void hashing_plugin::info(falcosecurity::plugin::information& out) const {
 }
 
 bool hashing_plugin::init(const std::string& config) {
-  LRUCache<unsigned long, std::string> cache(2);
-  cache.put(3, "c");
-  cache.put(1, "a");
-  cache.put(2, "b");
-  std::cout << "value 3: " << cache.get(3) << std::endl;
-  std::cout << "value 1: " << cache.get(1) << std::endl;
   m_config = config;
   return true;
 }
@@ -64,7 +59,7 @@ void hashing_plugin::last_error(std::string& out) const { out = m_lasterr; }
 void hashing_plugin::fields(
     std::vector<falcosecurity::field_extractor::field>& out) const {
   falcosecurity::field_extractor::field f;
-  f.name = "example.count";
+  f.name = "hashing.has_match";
   f.type = FTYPE_UINT64;
   f.description = "some desc";
   f.display = "some display";
@@ -129,22 +124,51 @@ hashing_instance::hashing_instance(const std::string& sst_dir)
   m_stop = false;
   watcher w("/tmp/sst_test", m_db);
   m_inotify_thread = std::make_unique<std::thread>(w, std::ref(m_stop));
+
+  // Start getting notification about which files are executed
+  m_execs_thread = std::make_unique<std::thread>(
+      exec_watcher, "/", std::ref(m_stop), std::ref(m_executed_files),
+      std::ref(m_mutex));
+
+  // Init cache
+  m_cache = std::make_unique<LRUCache<std::string, std::string>>(1000);
 }
 
 hashing_instance::~hashing_instance() {
   // Stop the watcher
   m_stop = true;
   m_inotify_thread->join();
+  m_execs_thread->join();
 
   // Delete DB
   delete m_db;
 }
 
-ss_plugin_rc hashing_instance ::next(const falcosecurity::event_sourcer* p,
-                                     ss_plugin_event* evt) {
-  m_count++;
-  evt->data = (uint8_t*)&m_count;
-  evt->datalen = sizeof(uint64_t);
-  // std::cout << m_count << std::endl;
+ss_plugin_rc hashing_instance::next(const falcosecurity::event_sourcer* p,
+                                    ss_plugin_event* evt) {
+  std::string file;
+
+  m_mutex.lock();
+  if (!m_executed_files.empty()) {
+    file = m_executed_files.front();
+    m_executed_files.pop();
+  }
+  m_mutex.unlock();
+
+  if (file.empty()) return SS_PLUGIN_TIMEOUT;
+
+  // Try to get file from cache
+  std::string hash;
+  try {
+    hash = m_cache->get(file);
+  } catch (std::range_error e) {
+    hash_calculator hc;
+    hc.checksum(file, hash_calculator::HT_SHA256, &hash);
+    m_cache->put(file, hash);
+    std::cout << "new file " + file << std::endl;
+  }
+
+  // Generate the event
+
   return SS_PLUGIN_SUCCESS;
 }

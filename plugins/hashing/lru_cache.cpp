@@ -1,10 +1,12 @@
 #include "lru_cache.h"
 
+#include <stdexcept>
+
 template <class key_t, class value_t>
 value_t LRUCache<key_t, value_t>::get(const key_t &key) {
   auto found_iter = m_map.find(key);
   if (found_iter == m_map.end()) {  // cache miss
-    return value_t();
+    throw std::range_error("no such key");
   }
 
   // cache hit, move key to front
@@ -28,7 +30,7 @@ void LRUCache<key_t, value_t>::put(key_t key, value_t value) {
   }
 
   if (m_map.size() == m_capacity) {  // reached capacity
-    int key_to_del = m_list.back().first;
+    key_t key_to_del = m_list.back().first;
 
     // remove node in list;
     m_list.pop_back();

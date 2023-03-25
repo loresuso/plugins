@@ -14,7 +14,8 @@ add_library(hashing SHARED
     api.cpp 
     watcher.cpp 
     utils.cpp
-    lru_cache.cpp)
+    lru_cache.cpp
+    exec_watcher.cpp)
 
 # todo: create a cmake module also for zlib and openssl
 find_package(ZLIB REQUIRED)

@@ -56,16 +56,13 @@ void watcher::operator()(std::atomic<bool> &stop) {
   char buf[buf_len];
   while (!stop.load()) {
     res = epoll_wait(epoll_fd, &ev, 1, timeout);
-    if (res == 0)  // no ready file descriptors, timeout reached
-    {
-      std::cout << "c" << std::endl;
+    if (res == 0) {  // no ready file descriptors, timeout reached
       continue;
     } else if (res == -1) {
       throw std::runtime_error("epoll_wait error" +
                                std::string(std::strerror(errno)));
     }
 
-    std::cout << "before read" << std::endl;
     n = read(inotify_fd, buf, buf_len);
     if (n == -1) {
       throw std::runtime_error("cannot read inotify events " +
@@ -85,14 +82,13 @@ void watcher::operator()(std::atomic<bool> &stop) {
     }
 
     // Let the database ingest them
+    // todo what about synchronization here?
     rocksdb::Status status = m_db->IngestExternalFile(
         new_sst_files, rocksdb::IngestExternalFileOptions());
     if (!status.ok()) {
       // todo: how to properly log?
       std::cout << "unable to ingest files: " << status.ToString() << std::endl;
     }
-
-    std::cout << "got an event" << std::endl;
   }
 
   close(epoll_fd);

@@ -13,6 +13,7 @@ class LRUCache {
   LRUCache(int capacity) : m_capacity(capacity) {}
   value_t get(const key_t &key);
   void put(key_t key, value_t value);
+  // todo: evict a key
 
  private:
   size_t m_capacity;
@@ -21,4 +22,4 @@ class LRUCache {
 };
 
 // Explicit instatiation
-template class LRUCache<unsigned long, std::string>;
+template class LRUCache<std::string, std::string>;

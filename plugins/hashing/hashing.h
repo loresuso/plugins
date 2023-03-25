@@ -3,8 +3,12 @@
 #include <falcosecurity/sdk.h>
 #include <rocksdb/db.h>
 
+#include <mutex>
+#include <queue>
 #include <string>
 #include <thread>
+
+#include "lru_cache.h"
 
 constexpr int plugin_id = 999;
 
@@ -21,8 +25,11 @@ class hashing_instance : public falcosecurity::event_sourcer::instance {
   // m_db is the database containing the hash->category mappings
   rocksdb::DB* m_db;
   std::unique_ptr<std::thread> m_inotify_thread;
-  std::atomic<bool> m_stop;
-  uint64_t m_count = 0;
+  std::unique_ptr<std::thread> m_execs_thread;
+  std::atomic<bool> m_stop;  // todo: may be replaced with a signal
+  std::queue<std::string> m_executed_files;
+  std::mutex m_mutex;
+  std::unique_ptr<LRUCache<std::string, std::string>> m_cache;
 };
 
 class hashing_plugin : public falcosecurity::event_sourcer,
