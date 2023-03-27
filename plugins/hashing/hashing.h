@@ -12,6 +12,12 @@
 
 constexpr int plugin_id = 999;
 
+struct hashing_event {
+  rocksdb::DB* db;
+  int64_t res;
+  std::string hash;
+};
+
 class hashing_instance : public falcosecurity::event_sourcer::instance {
  public:
   hashing_instance(const std::string& sst_dir);
@@ -30,6 +36,7 @@ class hashing_instance : public falcosecurity::event_sourcer::instance {
   std::queue<std::string> m_executed_files;
   std::mutex m_mutex;
   std::unique_ptr<LRUCache<std::string, std::string>> m_cache;
+  hashing_event m_event;
 };
 
 class hashing_plugin : public falcosecurity::event_sourcer,

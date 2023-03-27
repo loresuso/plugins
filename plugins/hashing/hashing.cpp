@@ -69,7 +69,16 @@ void hashing_plugin::fields(
 
 bool hashing_plugin::extract(const ss_plugin_event* evt,
                              ss_plugin_extract_field* field) {
-  field->res.u64 = (uint64_t*)evt->data;
+  hashing_event* e = (hashing_event*)evt->data;
+  std::string category;
+  rocksdb::Status status =
+      e->db->Get(rocksdb::ReadOptions(), e->hash, &category);
+  if (status.ok() && !category.empty()) {
+    e->res = 1;
+  } else {
+    e->res = 0;
+  }
+  field->res.u64 = (uint64_t*)e->res;
   field->res_len = 1;
   return true;
 }
@@ -159,16 +168,26 @@ ss_plugin_rc hashing_instance::next(const falcosecurity::event_sourcer* p,
 
   // Try to get file from cache
   std::string hash;
+  int64_t res;
   try {
     hash = m_cache->get(file);
   } catch (std::range_error e) {
     hash_calculator hc;
-    hc.checksum(file, hash_calculator::HT_SHA256, &hash);
-    m_cache->put(file, hash);
-    std::cout << "new file " + file << std::endl;
+    res = hc.checksum(file, hash_calculator::HT_SHA256, &hash);
+    if (!res) {
+      m_cache->put(file, hash);
+      std::cout << "new file " + file << std::endl;
+    } else {
+      return SS_PLUGIN_FAILURE;
+    }
   }
 
+  m_event.res = res;
+  m_event.hash = hash;
+
   // Generate the event
+  evt->data = (uint8_t*)&m_event;
+  evt->datalen = sizeof(m_event);
 
   return SS_PLUGIN_SUCCESS;
 }
