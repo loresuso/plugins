@@ -14,8 +14,9 @@ constexpr int plugin_id = 999;
 
 struct hashing_event {
   rocksdb::DB* db;
-  int64_t res;
+  int64_t hash_res;
   std::string hash;
+  uint64_t res;
 };
 
 class hashing_instance : public falcosecurity::event_sourcer::instance {

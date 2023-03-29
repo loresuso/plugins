@@ -30,3 +30,13 @@ target_link_libraries(hashing
     ${CMAKE_DL_LIBS}
     crypto
 )
+
+add_executable(sst_writer tools/sst_writer.cpp)
+
+target_link_libraries(sst_writer 
+    rocksdb
+    ZLIB::ZLIB
+    nlohmann_json::nlohmann_json 
+    pthread 
+    ${CMAKE_DL_LIBS}
+)

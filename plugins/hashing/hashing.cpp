@@ -59,28 +59,41 @@ void hashing_plugin::last_error(std::string& out) const { out = m_lasterr; }
 void hashing_plugin::fields(
     std::vector<falcosecurity::field_extractor::field>& out) const {
   falcosecurity::field_extractor::field f;
-  f.name = "hashing.has_match";
+  out.clear();
+
+  f.name = "hashing.match";
   f.type = FTYPE_UINT64;
   f.description = "some desc";
   f.display = "some display";
-  out.clear();
   out.push_back(f);
 }
 
 bool hashing_plugin::extract(const ss_plugin_event* evt,
                              ss_plugin_extract_field* field) {
   hashing_event* e = (hashing_event*)evt->data;
-  std::string category;
-  rocksdb::Status status =
-      e->db->Get(rocksdb::ReadOptions(), e->hash, &category);
-  if (status.ok() && !category.empty()) {
-    e->res = 1;
-  } else {
-    e->res = 0;
+  if (e->hash_res != 0) {
+    return false;
   }
-  field->res.u64 = (uint64_t*)e->res;
-  field->res_len = 1;
-  return true;
+
+  switch (field->field_id) {
+    case 0: {  // hashing.match
+      std::string category;
+      rocksdb::Status status =
+          e->db->Get(rocksdb::ReadOptions(), e->hash, &category);
+      if (status.ok() && !category.empty()) {
+        e->res = 1;
+      } else {
+        e->res = 0;
+      }
+
+      field->res.u64 = (uint64_t*)&e->res;
+      field->res_len = 1;
+      return true;
+      break;
+    }
+    default:
+      return false;
+  }
 }
 
 uint32_t hashing_plugin::id() const { return plugin_id; }
@@ -171,19 +184,20 @@ ss_plugin_rc hashing_instance::next(const falcosecurity::event_sourcer* p,
   int64_t res;
   try {
     hash = m_cache->get(file);
+    res = 0;
   } catch (std::range_error e) {
     hash_calculator hc;
     res = hc.checksum(file, hash_calculator::HT_SHA256, &hash);
     if (!res) {
       m_cache->put(file, hash);
-      std::cout << "new file " + file << std::endl;
     } else {
       return SS_PLUGIN_FAILURE;
     }
   }
 
-  m_event.res = res;
+  m_event.hash_res = res;
   m_event.hash = hash;
+  m_event.db = m_db;  // consider moving the db to plugin
 
   // Generate the event
   evt->data = (uint8_t*)&m_event;

@@ -31,7 +31,9 @@ void watcher::operator()(std::atomic<bool> &stop) {
 
   // Get notifications about every new file that was opened for write and then
   // closed
-  int watch_fd = inotify_add_watch(inotify_fd, m_dir.c_str(), IN_CLOSE_WRITE);
+  int watch_fd =
+      inotify_add_watch(inotify_fd, m_dir.c_str(),
+                        IN_CLOSE_WRITE);  // todo: check how to catch rename
   if (watch_fd == -1) {
     std::cout << errno << std::endl;
     throw std::runtime_error("cannot watch " + m_dir + ": " +
@@ -83,6 +85,7 @@ void watcher::operator()(std::atomic<bool> &stop) {
 
     // Let the database ingest them
     // todo what about synchronization here?
+    std::cout << "ingesting external file" << std::endl;
     rocksdb::Status status = m_db->IngestExternalFile(
         new_sst_files, rocksdb::IngestExternalFileOptions());
     if (!status.ok()) {

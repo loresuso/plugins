@@ -2,8 +2,8 @@ include(FetchContent)
 
 FetchContent_Declare(
   plugin-sdk-cpp
-  GIT_REPOSITORY https://github.com/loresuso/plugin-sdk-cpp.git # todo: change here
-  GIT_TAG        5e7f232eb6d7d1efdc7a4d0404c66a47b841676b # desired git tag here
+  GIT_REPOSITORY https://github.com/falcosecurity/plugin-sdk-cpp.git # todo: change here
+  GIT_TAG        20f7c2825853eee38b9d766b3402e64d50585b71 # desired git tag here
 )
 
 FetchContent_MakeAvailable(plugin-sdk-cpp)

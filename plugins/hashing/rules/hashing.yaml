@@ -1,6 +1,7 @@
 - rule: malware executed
   desc: malware executed
   condition: >
-    hashing.has_match=1
+    hashing.match = 1
   output: has match!!!!!
   priority: WARNING
+  source: hashing
