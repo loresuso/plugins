@@ -42,6 +42,11 @@ using ROCKSDB_NAMESPACE::DB;
 
 using json = nlohmann::json;
 
+void from_json(const json& j, hashing_config& c) {
+  j.at("db_dir").get_to(c.db_dir);
+  j.at("sst_files_dir").get_to(c.sst_files_dir);
+}
+
 void hashing_plugin::info(falcosecurity::plugin::information& out) const {
   out.name = "hashing";
   out.description = "Sample of hashing plugin";
@@ -50,7 +55,8 @@ void hashing_plugin::info(falcosecurity::plugin::information& out) const {
 }
 
 bool hashing_plugin::init(const std::string& config) {
-  m_config = config;
+  json data = json::parse(config);
+  m_config = data.get<hashing_config>();
   return true;
 }
 

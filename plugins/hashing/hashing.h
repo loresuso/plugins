@@ -19,6 +19,12 @@ struct hashing_event {
   uint64_t res;
 };
 
+class hashing_config {
+ public:
+  std::string db_dir;
+  std::string sst_files_dir;
+};
+
 class hashing_instance : public falcosecurity::event_sourcer::instance {
  public:
   hashing_instance(const std::string& sst_dir);
@@ -57,8 +63,7 @@ class hashing_plugin : public falcosecurity::event_sourcer,
       const std::string& params) override;
 
  private:
-  // A copy of the config provided to init()
-  std::string m_config;
+  hashing_config m_config;
   // A string containing the last error the plugin encountered
   std::string m_lasterr;
 };
